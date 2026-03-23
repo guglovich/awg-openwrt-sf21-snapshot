@@ -12,7 +12,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'OpenWRT version (e.g., 24.10.5)'
+        description: 'OpenWRT version (e.g., 24.10.5) or SNAPSHOT'
         required: true
         type: string
       targets:
@@ -100,23 +100,26 @@ jobs:
         run: |
           echo "pkgarch: ${{ matrix.build_env.pkgarch}}, target:${{ matrix.build_env.target}}, subtarget: ${{ matrix.build_env.subtarget}}"
 
-          # Get the actual SDK filename from the directory listing
-if [ "${{ matrix.build_env.tag }}" = "SNAPSHOT" ]; then
+          # Build correct base URL depending on SNAPSHOT or release
+          if [ "${{ matrix.build_env.tag }}" = "SNAPSHOT" ]; then
             BASE_URL="https://downloads.openwrt.org/snapshots/targets/${{ matrix.build_env.target}}/${{ matrix.build_env.subtarget}}"
           else
             BASE_URL="https://downloads.openwrt.org/releases/${{ matrix.build_env.tag }}/targets/${{ matrix.build_env.target}}/${{ matrix.build_env.subtarget}}"
           fi
+
+          # Get the actual SDK filename from the directory listing
           SDK_FILE=$(curl -s "${BASE_URL}/" | grep -o 'openwrt-sdk[^"]*\.Linux-x86_64\.tar\.[xz|zst]*' | head -n1)
-          
+
           if [ -z "$SDK_FILE" ]; then
             echo "SDK file not found for ${{ matrix.build_env.tag }} ${{ matrix.build_env.target}} ${{ matrix.build_env.subtarget}}"
             exit 1
           fi
-          
-SDK_DOWNLOAD_URL="${BASE_URL}/${SDK_FILE}"          echo "Downloading SDK: $SDK_DOWNLOAD_URL"
-          
+
+          SDK_DOWNLOAD_URL="${BASE_URL}/${SDK_FILE}"
+          echo "Downloading SDK: $SDK_DOWNLOAD_URL"
+
           wget "$SDK_DOWNLOAD_URL"
-          
+
           # Extract based on file extension
           if [[ "$SDK_FILE" == *.tar.zst ]]; then
             tar --zstd -xf "$SDK_FILE"
@@ -126,39 +129,39 @@ SDK_DOWNLOAD_URL="${BASE_URL}/${SDK_FILE}"          echo "Downloading SDK: $SDK_
             echo "Unknown archive format: $SDK_FILE"
             exit 1
           fi
-          
+
           rm "$SDK_FILE"
 
       - name: Setup SDK and feeds
         run: |
           # Find SDK directory
           SDK_DIR=$(find . -maxdepth 1 -name "openwrt-sdk-*" -type d | head -n1)
-          
+
           if [ -z "$SDK_DIR" ]; then
             echo "SDK directory not found"
             exit 1
           fi
-          
+
           # Get absolute paths
           WORKSPACE_DIR=$(pwd)
-          
+
           cd "$SDK_DIR"
-          
+
           # Update feeds to include LuCI
           ./scripts/feeds update -a
           ./scripts/feeds install -a
-          
+
           # Copy current repository packages directly to package directory
           cp -r "$WORKSPACE_DIR/kmod-amneziawg" package/
           cp -r "$WORKSPACE_DIR/amneziawg-tools" package/
           cp -r "$WORKSPACE_DIR/luci-proto-amneziawg" package/
-          
+
           # Configure packages to build
           echo "CONFIG_PACKAGE_kmod-amneziawg=m" > .config
           echo "CONFIG_PACKAGE_amneziawg-tools=y" >> .config
           echo "CONFIG_PACKAGE_luci-proto-amneziawg=y" >> .config
           echo "CONFIG_PACKAGE_luci-i18n-amneziawg-ru=y" >> .config
-          
+
           make defconfig
 
       - name: Build AmneziaWG packages
@@ -183,7 +186,7 @@ SDK_DOWNLOAD_URL="${BASE_URL}/${SDK_FILE}"          echo "Downloading SDK: $SDK_
           echo "Building amneziawg-tools..."
           make package/amneziawg-tools/{download,prepare} V=s
           make package/amneziawg-tools/compile V=s
-          
+
           echo "Build completed. Checking for built packages..."
           find bin/ -name "*.?pk" | grep -E "(amneziawg|luci-proto-amneziawg|luci-i18n-amneziawg)" | head -10
 
@@ -191,16 +194,16 @@ SDK_DOWNLOAD_URL="${BASE_URL}/${SDK_FILE}"          echo "Downloading SDK: $SDK_
         run: |
           # Find SDK directory
           SDK_DIR=$(find . -maxdepth 1 -name "openwrt-sdk-*" -type d | head -n1)
-          
+
           mkdir -p awgrelease
           postfix="v${{ matrix.build_env.tag }}_${{ matrix.build_env.pkgarch}}_${{ matrix.build_env.target}}_${{ matrix.build_env.subtarget}}"
-          
+
           # Copy built packages
           find "$SDK_DIR/bin/packages" -name "amneziawg-tools*.?pk" -exec sh -c 'file="$1"; postfix="$2"; ext="${file##*.}"; cp "$file" "awgrelease/amneziawg-tools_${postfix}.${ext}"' _ {} "${postfix}" \; || echo "amneziawg-tools package not found"
           find "$SDK_DIR/bin/packages" -name "luci-proto-amneziawg*.?pk" -exec sh -c 'file="$1"; postfix="$2"; ext="${file##*.}"; cp "$file" "awgrelease/luci-proto-amneziawg_${postfix}.${ext}"' _ {} "${postfix}" \; || echo "luci-proto-amneziawg package not found"
           find "$SDK_DIR/bin/packages" -name "luci-i18n-amneziawg-ru*.?pk" -exec sh -c 'file="$1"; postfix="$2"; ext="${file##*.}"; cp "$file" "awgrelease/luci-i18n-amneziawg-ru_${postfix}.${ext}"' _ {} "${postfix}" \; || echo "luci-i18n-amneziawg-ru package not found"
           find "$SDK_DIR/bin/targets" -name "kmod-amneziawg*.?pk" -exec sh -c 'file="$1"; postfix="$2"; ext="${file##*.}"; cp "$file" "awgrelease/kmod-amneziawg_${postfix}.${ext}"' _ {} "${postfix}" \; || echo "kmod-amneziawg package not found"
-          
+
           echo "Built packages:"
           ls -la awgrelease/
 
