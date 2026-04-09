@@ -11,6 +11,13 @@
 This repository contains pre-built **AmneziaWG** packages for the Banana Pi BPI-RV2 router running OpenWrt **snapshot** builds. The official releases only cover stable versions — these packages fill the gap for snapshot users.
 
 ---
+## Install
+
+```
+sh <(wget --no-check-certificate -O - https://raw.githubusercontent.com/guglovich/awg-openwrt-sf21-snapshot/refs/heads/master/amneziawg-install.sh)
+```
+
+---
 
 ## Packages
 
