@@ -11,6 +11,7 @@
 ```
 sh <(wget --no-check-certificate -O - https://raw.githubusercontent.com/guglovich/awg-openwrt-sf21-snapshot/refs/heads/master/amneziawg-install.sh)
 ```
+---
 
 ## О проекте
 
